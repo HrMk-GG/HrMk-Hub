@@ -2,16 +2,17 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 
 local Player = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- 既存GUI削除
-local old = Player.PlayerGui:FindFirstChild("HrMk_V19")
+local old = Player.PlayerGui:FindFirstChild("HrMk_V20")
 if old then old:Destroy() end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "HrMk_V19"
+screenGui.Name = "HrMk_V20"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = Player.PlayerGui
 
@@ -20,93 +21,77 @@ local settings = {
     AimBot = false, AimKey = Enum.KeyCode.E, AimFOV = 150,
     Fly = false, FlySpeed = 50, InfJump = false, NoClip = false,
     WalkSpeed = 16, JumpPower = 50, TPDist = 50,
-    TargetPos = nil, ShowCircle = true
+    TargetPos = nil, ShowCircle = true, SpinBot = false,
+    FullBright = false, InstantPrompt = false, ESP = false
 }
 
-local AccentColor = Color3.fromRGB(0, 255, 150) -- 鮮やかなネオングリーン
+local AccentColor = Color3.fromRGB(0, 255, 150)
 local MainBG = Color3.fromRGB(10, 10, 12)
 
--- === UI構築 (メインフレーム) ===
+-- === メインフレーム ===
 local Main = Instance.new("Frame", screenGui)
-Main.Size = UDim2.new(0, 600, 0, 450) -- サイズアップ
-Main.Position = UDim2.new(0.5, -300, 0.5, -225)
+Main.Size = UDim2.new(0, 620, 0, 480)
+Main.Position = UDim2.new(0.5, -310, 0.5, -240)
 Main.BackgroundColor3 = MainBG
 Main.BorderSizePixel = 0
 Main.Visible = false
 Main.Active = true
-Main.Draggable = true
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+local Stroke = Instance.new("UIStroke", Main); Stroke.Thickness = 3; Stroke.Color = AccentColor
 
--- 外枠の発光エフェクト
-local Stroke = Instance.new("UIStroke", Main)
-Stroke.Thickness = 4
-Stroke.Color = AccentColor
-Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+-- === ドラッグ専用ヘッダー (ここを掴まないと動かない) ===
+local Header = Instance.new("Frame", Main)
+Header.Size = UDim2.new(1, 0, 0, 40)
+Header.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+Header.BorderSizePixel = 0
+local HeaderCorner = Instance.new("UICorner", Header); HeaderCorner.CornerRadius = UDim.new(0, 10)
+local Title = Instance.new("TextLabel", Header)
+Title.Text = "HrMk HUB ULTIMATE V20 - [DRAG HERE]"
+Title.Size = UDim2.new(1, 0, 1, 0); Title.TextColor3 = AccentColor; Title.Font = "GothamBlack"; Title.TextSize = 16; Title.BackgroundTransparency = 1
+
+-- ドラッグ機能の実装
+local dragging, dragInput, dragStart, startPos
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+Header.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
 
 -- サイドバー
 local Side = Instance.new("Frame", Main)
-Side.Size = UDim2.new(0, 180, 1, 0)
-Side.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-Instance.new("UICorner", Side)
-
-local SideLayout = Instance.new("UIListLayout", Side)
-SideLayout.Padding = UDim.new(0, 10)
-SideLayout.HorizontalAlignment = "Center"
-SideLayout.VerticalAlignment = "Center"
+Side.Size = UDim2.new(0, 180, 1, -40); Side.Position = UDim2.new(0, 0, 0, 40)
+Side.BackgroundColor3 = Color3.fromRGB(15, 15, 18); Side.BorderSizePixel = 0
+local SideLayout = Instance.new("UIListLayout", Side); SideLayout.Padding = UDim.new(0, 5); SideLayout.HorizontalAlignment = "Center"
 
 -- コンテナ
 local Container = Instance.new("Frame", Main)
-Container.Size = UDim2.new(1, -200, 1, -40)
-Container.Position = UDim2.new(0, 190, 0, 20)
-Container.BackgroundTransparency = 1
+Container.Size = UDim2.new(1, -200, 1, -60); Container.Position = UDim2.new(0, 190, 0, 50); Container.BackgroundTransparency = 1
 
 local Tabs = {}
-
--- === タブ作成機能 ===
 local function CreateTab(name)
     local f = Instance.new("ScrollingFrame", Container)
-    f.Size = UDim2.new(1, 0, 1, 0)
-    f.BackgroundTransparency = 1
-    f.Visible = false
-    f.ScrollBarThickness = 5
-    f.CanvasSize = UDim2.new(0,0,0,0)
-    
-    local layout = Instance.new("UIListLayout", f)
-    layout.Padding = UDim.new(0, 15)
-    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        f.CanvasSize = UDim2.new(0,0,0, layout.AbsoluteContentSize.Y + 20)
-    end)
+    f.Size = UDim2.new(1, 0, 1, 0); f.BackgroundTransparency = 1; f.Visible = false; f.ScrollBarThickness = 5
+    local layout = Instance.new("UIListLayout", f); layout.Padding = UDim.new(0, 12)
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() f.CanvasSize = UDim2.new(0,0,0, layout.AbsoluteContentSize.Y + 20) end)
     
     local btn = Instance.new("TextButton", Side)
-    btn.Text = name:upper()
-    btn.Size = UDim2.new(0.85, 0, 0, 55) -- ボタンを大きく
-    btn.Font = "GothamBlack"
-    btn.TextSize = 18 -- 文字を大きく
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    Instance.new("UICorner", btn)
-    
-    btn.MouseButton1Click:Connect(function()
-        for _, t in pairs(Tabs) do t.Visible = false end
-        f.Visible = true
-    end)
-    
-    Tabs[name] = f
-    return f
+    btn.Text = name:upper(); btn.Size = UDim2.new(0.9, 0, 0, 50); btn.Font = "GothamBlack"; btn.TextSize = 16; btn.TextColor3 = Color3.new(1,1,1); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); Instance.new("UICorner", btn)
+    btn.MouseButton1Click:Connect(function() for _, t in pairs(Tabs) do t.Visible = false end f.Visible = true end)
+    Tabs[name] = f; return f
 end
 
--- === パーツ作成機能 ===
+-- === パーツ作成 ===
 local function CreateButton(text, parent, callback)
-    local b = Instance.new("TextButton", parent)
-    b.Text = text
-    b.Size = UDim2.new(0.95, 0, 0, 60)
-    b.Font = "GothamBold"
-    b.TextSize = 20 -- 文字を大きく
-    b.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    b.TextColor3 = Color3.new(1,1,1)
-    Instance.new("UICorner", b)
-    b.MouseButton1Click:Connect(callback)
-    return b
+    local b = Instance.new("TextButton", parent); b.Text = text; b.Size = UDim2.new(0.95, 0, 0, 55); b.Font = "GothamBold"; b.TextSize = 18; b.BackgroundColor3 = Color3.fromRGB(30, 30, 35); b.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", b)
+    b.MouseButton1Click:Connect(callback); return b
 end
 
 local function CreateToggle(text, prop, parent)
@@ -118,10 +103,10 @@ local function CreateToggle(text, prop, parent)
     b.Name = text
 end
 
-local function CreateSlider(text, prop, min, max, parent)
-    local con = Instance.new("Frame", parent); con.Size = UDim2.new(0.95, 0, 0, 80); con.BackgroundTransparency = 1
-    local lab = Instance.new("TextLabel", con); lab.Text = text .. " : " .. settings[prop]; lab.Size = UDim2.new(1,0,0,30); lab.Font = "GothamBold"; lab.TextSize = 18; lab.TextColor3 = Color3.new(1,1,1); lab.BackgroundTransparency = 1
-    local bar = Instance.new("Frame", con); bar.Size = UDim2.new(0.9, 0, 0, 10); bar.Position = UDim2.new(0.05, 0, 0.7, 0); bar.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2); Instance.new("UICorner", bar)
+local function CreateSlider(text, prop, min, max, parent, callback)
+    local con = Instance.new("Frame", parent); con.Size = UDim2.new(0.95, 0, 0, 75); con.BackgroundTransparency = 1
+    local lab = Instance.new("TextLabel", con); lab.Text = text .. " : " .. settings[prop]; lab.Size = UDim2.new(1,0,0,30); lab.Font = "GothamBold"; lab.TextSize = 16; lab.TextColor3 = Color3.new(1,1,1); lab.BackgroundTransparency = 1
+    local bar = Instance.new("Frame", con); bar.Size = UDim2.new(0.9, 0, 0, 10); bar.Position = UDim2.new(0.05, 0, 0.65, 0); bar.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2); Instance.new("UICorner", bar)
     local han = Instance.new("Frame", bar); han.Size = UDim2.new(0, 20, 0, 20); han.AnchorPoint = Vector2.new(0.5,0.5); han.Position = UDim2.new((settings[prop]-min)/(max-min), 0, 0.5, 0); han.BackgroundColor3 = AccentColor; Instance.new("UICorner", han)
     
     local drag = false
@@ -133,90 +118,75 @@ local function CreateSlider(text, prop, min, max, parent)
             han.Position = UDim2.new(x, 0, 0.5, 0)
             local val = math.floor(min + (max-min)*x)
             settings[prop] = val; lab.Text = text .. " : " .. val
-            if prop == "WalkSpeed" and Player.Character then Player.Character.Humanoid.WalkSpeed = val end
+            if callback then callback(val) end
         end
     end)
 end
 
--- === タブ内容設置 ===
+-- === タブ構成 ===
 local TPTab = CreateTab("Teleport")
 local MoveTab = CreateTab("Movement")
 local AimTab = CreateTab("Combat")
+local UtilTab = CreateTab("Utility")
 
--- Teleport タブ
+-- Teleport
 CreateButton("SET CURRENT POS", TPTab, function() settings.TargetPos = Player.Character.HumanoidRootPart.CFrame end)
 CreateButton("TELEPORT TO SAVED", TPTab, function() if settings.TargetPos then Player.Character.HumanoidRootPart.CFrame = settings.TargetPos end end)
 CreateButton("TELEPORT FORWARD", TPTab, function() Player.Character.HumanoidRootPart.CFrame *= CFrame.new(0,0,-settings.TPDist) end)
-CreateSlider("TP DISTANCE", "TPDist", 1, 500, TPTab)
+CreateSlider("FORWARD DIST", "TPDist", 1, 1000, TPTab)
 
--- Movement タブ
+-- Movement
 CreateToggle("FLY MODE", "Fly", MoveTab)
+CreateSlider("FLY SPEED", "FlySpeed", 10, 500, MoveTab)
 CreateToggle("INF JUMP", "InfJump", MoveTab)
 CreateToggle("NOCLIP", "NoClip", MoveTab)
-CreateSlider("SPEED", "WalkSpeed", 16, 300, MoveTab)
+CreateSlider("WALK SPEED", "WalkSpeed", 16, 500, MoveTab, function(v) if Player.Character then Player.Character.Humanoid.WalkSpeed = v end end)
+CreateSlider("JUMP POWER", "JumpPower", 50, 500, MoveTab, function(v) if Player.Character then Player.Character.Humanoid.JumpPower = v; Player.Character.Humanoid.UseJumpPower = true end end)
 
--- Combat タブ
+-- Combat
 CreateToggle("AIMBOT", "AimBot", AimTab)
 CreateSlider("AIM FOV", "AimFOV", 10, 800, AimTab)
 CreateToggle("SHOW CIRCLE", "ShowCircle", AimTab)
+CreateToggle("PLAYER ESP", "ESP", AimTab)
+CreateToggle("SPIN BOT", "SpinBot", AimTab)
 
--- === ロード画面 (刷新) ===
-local Load = Instance.new("Frame", screenGui)
-Load.Size = UDim2.new(1, 0, 1, 0)
-Load.BackgroundColor3 = MainBG
-Load.ZIndex = 10
+-- Utility
+CreateToggle("INSTANT PROMPT", "InstantPrompt", UtilTab)
+CreateToggle("FULLBRIGHT", "FullBright", UtilTab)
 
-local Logo = Instance.new("TextLabel", Load)
-Logo.Text = "HrMk ULTIMATE"
-Logo.Size = UDim2.new(1, 0, 1, 0)
-Logo.Font = "Code"
-Logo.TextSize = 60
-Logo.TextColor3 = AccentColor
-Logo.BackgroundTransparency = 1
-
-local BarBG = Instance.new("Frame", Load)
-BarBG.Size = UDim2.new(0, 400, 0, 10)
-BarBG.Position = UDim2.new(0.5, -200, 0.7, 0)
-BarBG.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-
-local Bar = Instance.new("Frame", BarBG)
-Bar.Size = UDim2.new(0, 0, 1, 0)
-Bar.BackgroundColor3 = AccentColor
-
-task.spawn(function()
-    TweenService:Create(Bar, TweenInfo.new(1.5), {Size = UDim2.new(1, 0, 1, 0)}):Play()
-    task.wait(1.7)
-    Load:Destroy()
-    Main.Visible = true
-    TPTab.Visible = true
-end)
-
--- === 常駐ロジック (Fly/NoClip/Aim) ===
+-- === 常駐ロジック ===
 local Circle = Instance.new("Frame", screenGui); Circle.AnchorPoint = Vector2.new(0.5,0.5); Circle.Position = UDim2.new(0.5,0,0.5,0); Circle.BackgroundTransparency = 1; local s = Instance.new("UIStroke", Circle); s.Color = AccentColor; s.Thickness = 2; Instance.new("UICorner", Circle).CornerRadius = UDim.new(1,0)
 
 RunService.Stepped:Connect(function()
     if not Player.Character then return end
-    if settings.NoClip then
-        for _, v in pairs(Player.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
-    end
+    local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    if settings.NoClip then for _, v in pairs(Player.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end end
+    if settings.SpinBot then hrp.CFrame *= CFrame.Angles(0, math.rad(25), 0) end
     if settings.Fly then
-        local hrp = Player.Character.HumanoidRootPart
-        local m = UserInputService:GetMouseLocation()
         local dir = Vector3.new(0,0,0)
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += Camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= Camera.CFrame.LookVector end
-        hrp.Velocity = dir * settings.FlySpeed
-        hrp.Anchored = (dir.Magnitude == 0)
-    end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += Camera.CFrame.RightVector end
+        hrp.Velocity = dir * settings.FlySpeed; hrp.Anchored = (dir.Magnitude == 0)
+    else hrp.Anchored = false end
 end)
 
 RunService.RenderStepped:Connect(function()
-    Circle.Visible = settings.ShowCircle
-    Circle.Size = UDim2.new(0, settings.AimFOV*2, 0, settings.AimFOV*2)
+    Circle.Visible = settings.ShowCircle; Circle.Size = UDim2.new(0, settings.AimFOV*2, 0, settings.AimFOV*2)
+    if settings.FullBright then Lighting.Brightness = 2; Lighting.ClockTime = 14; Lighting.OutdoorAmbient = Color3.new(1,1,1) end
+    if settings.InstantPrompt then for _, v in pairs(workspace:GetDescendants()) do if v:IsA("ProximityPrompt") then v.HoldDuration = 0 end end end
+    
     if settings.AimBot then
         local target = nil; local dist = settings.AimFOV; local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= Player and p.Character and p.Character:FindFirstChild("Head") then
+                if settings.ESP then
+                    if not p.Character:FindFirstChild("HrESP") then Instance.new("Highlight", p.Character).Name = "HrESP" end
+                    p.Character.HrESP.FillColor = AccentColor
+                elseif p.Character:FindFirstChild("HrESP") then p.Character.HrESP:Destroy() end
                 local pos, onS = Camera:WorldToViewportPoint(p.Character.Head.Position)
                 if onS then
                     local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
@@ -228,6 +198,16 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-UserInputService.InputBegan:Connect(function(i, g)
-    if not g and i.KeyCode == Enum.KeyCode.M then Main.Visible = not Main.Visible end
+UserInputService.JumpRequest:Connect(function() if settings.InfJump and Player.Character then Player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end end)
+
+-- === ロード＆起動 ===
+local Load = Instance.new("Frame", screenGui); Load.Size = UDim2.new(1, 0, 1, 0); Load.BackgroundColor3 = MainBG; Load.ZIndex = 100
+local Logo = Instance.new("TextLabel", Load); Logo.Text = "SYSTEM INITIALIZING..."; Logo.Size = UDim2.new(1, 0, 1, 0); Logo.Font = "Code"; Logo.TextSize = 40; Logo.TextColor3 = AccentColor; Logo.BackgroundTransparency = 1
+task.spawn(function()
+    task.wait(1.5)
+    TweenService:Create(Load, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(Logo, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+    task.wait(0.5); Load:Destroy(); Main.Visible = true; TPTab.Visible = true
 end)
+
+UserInputService.InputBegan:Connect(function(i, g) if not g and i.KeyCode == Enum.KeyCode.M then Main.Visible = not Main.Visible end end)
