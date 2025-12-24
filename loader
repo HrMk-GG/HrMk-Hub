@@ -6,7 +6,7 @@ local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "HrMk_Hub_V15"
+screenGui.Name = "HrMk_Hub_V16_Final"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = PlayerGui
 
@@ -15,7 +15,7 @@ local settings = {
     AimBot = false, AimKey = Enum.KeyCode.E, AimFOV = 100, GameFOV = 70,
     ESP = false, WallXray = false, WalkSpeed = 16, JumpPower = 50,
     TargetPos = nil, ShowCircle = true, InstantPrompt = false,
-    TPDistance = 10 -- 前方テレポートの初期距離
+    TPDistance = 50 -- 前方テレポートの初期値
 }
 
 -- === テーマ定義 ===
@@ -31,7 +31,7 @@ local currentTheme = THEMES["Neon Blue"]
 local sync_BGs = {}
 local sync_Accents = {}
 
--- === FOVサークル（画面中央固定） ===
+-- === FOVサークル ===
 local fovCircle = Instance.new("Frame", screenGui)
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -70,19 +70,37 @@ container = Instance.new("Frame", mainFrame); container.Size = UDim2.new(1, -180
 
 local tabs = {}
 local function createTab(name)
-    local f = Instance.new("ScrollingFrame", container); f.Size = UDim2.new(1, 0, 1, 0); f.BackgroundTransparency = 1; f.Visible = false; f.ScrollBarThickness = 0
-    Instance.new("UIListLayout", f).Padding = UDim.new(0, 15)
-    local btn = Instance.new("TextButton", sidebar); btn.Text = name; btn.Size = UDim2.new(0.85, 0, 0, 50); btn.Font = "GothamBold"; btn.TextSize = 18; btn.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", btn); table.insert(sync_BGs, btn)
+    local f = Instance.new("ScrollingFrame", container)
+    f.Size = UDim2.new(1, 0, 1, 0)
+    f.BackgroundTransparency = 1
+    f.Visible = false
+    f.ScrollBarThickness = 4
+    f.CanvasSize = UDim2.new(0, 0, 1.5, 0) -- スクロール範囲を確保
+    
+    local layout = Instance.new("UIListLayout", f)
+    layout.Padding = UDim.new(0, 12)
+    layout.HorizontalAlignment = "Center"
+    
+    -- 自動でCanvasSizeを調整する設定
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        f.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    local btn = Instance.new("TextButton", sidebar)
+    btn.Text = name; btn.Size = UDim2.new(0.85, 0, 0, 45); btn.Font = "GothamBold"; btn.TextSize = 16; btn.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", btn); table.insert(sync_BGs, btn)
     btn.MouseButton1Click:Connect(function() for _, t in pairs(tabs) do t.Visible = false end f.Visible = true end)
     tabs[name] = f return f
 end
 
-local tabTP = createTab("Teleporter"); local tabCustom = createTab("Customizer"); local tabAim = createTab("AutoAim"); local tabSettings = createTab("Settings")
+local tabTP = createTab("Teleporter")
+local tabCustom = createTab("Customizer")
+local tabAim = createTab("AutoAim")
+local tabSettings = createTab("Settings")
 tabs["Teleporter"].Visible = true
 
--- 共通パーツ
+-- 共通パーツ作成
 local function createToggle(name, prop, parent)
-    local btn = Instance.new("TextButton", parent); btn.Text = name .. " : OFF"; btn.Size = UDim2.new(0.95, 0, 0, 50); btn.Font = "GothamBold"; btn.TextSize = 16; btn.TextColor3 = Color3.fromRGB(200, 200, 200); Instance.new("UICorner", btn); table.insert(sync_BGs, btn)
+    local btn = Instance.new("TextButton", parent); btn.Text = name .. " : OFF"; btn.Size = UDim2.new(0.95, 0, 0, 48); btn.Font = "GothamBold"; btn.TextSize = 14; btn.TextColor3 = Color3.fromRGB(200, 200, 200); Instance.new("UICorner", btn); table.insert(sync_BGs, btn)
     btn.MouseButton1Click:Connect(function()
         settings[prop] = not settings[prop]
         btn.Text = name .. " : " .. (settings[prop] and "ON" or "OFF")
@@ -91,11 +109,10 @@ local function createToggle(name, prop, parent)
 end
 
 local function createSlider(name, prop, min, max, default, parent, callback)
-    local con = Instance.new("Frame", parent); con.Size = UDim2.new(0.95, 0, 0, 70); con.BackgroundTransparency = 1
-    local lab = Instance.new("TextLabel", con); lab.Text = name .. ": " .. default; lab.Size = UDim2.new(1, 0, 0, 30); lab.Font = "GothamBold"; lab.TextSize = 16; lab.TextColor3 = Color3.new(1,1,1); lab.BackgroundTransparency = 1; lab.TextXAlignment = "Left"
-    local bar = Instance.new("Frame", con); bar.Size = UDim2.new(0.95, 0, 0, 8); bar.Position = UDim2.new(0,0,0.75,0); bar.BackgroundColor3 = Color3.fromRGB(40,40,45); Instance.new("UICorner", bar)
-    local han = Instance.new("Frame", bar); han.Size = UDim2.new(0, 18, 0, 18); han.AnchorPoint = Vector2.new(0.5, 0.5); han.Position = UDim2.new((default-min)/(max-min), 0, 0.5, 0); Instance.new("UICorner", han).CornerRadius = UDim.new(1,0); table.insert(sync_Accents, han)
-    
+    local con = Instance.new("Frame", parent); con.Size = UDim2.new(0.95, 0, 0, 65); con.BackgroundTransparency = 1
+    local lab = Instance.new("TextLabel", con); lab.Text = name .. ": " .. default; lab.Size = UDim2.new(1, 0, 0, 25); lab.Font = "GothamBold"; lab.TextSize = 14; lab.TextColor3 = Color3.new(1,1,1); lab.BackgroundTransparency = 1; lab.TextXAlignment = "Left"
+    local bar = Instance.new("Frame", con); bar.Size = UDim2.new(0.95, 0, 0, 6); bar.Position = UDim2.new(0,0,0.7,0); bar.BackgroundColor3 = Color3.fromRGB(40,40,45); Instance.new("UICorner", bar)
+    local han = Instance.new("Frame", bar); han.Size = UDim2.new(0, 16, 0, 16); han.AnchorPoint = Vector2.new(0.5, 0.5); han.Position = UDim2.new((default-min)/(max-min), 0, 0.5, 0); Instance.new("UICorner", han).CornerRadius = UDim.new(1,0); table.insert(sync_Accents, han)
     local drag = false
     han.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = true end end)
     UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end end)
@@ -109,69 +126,70 @@ local function createSlider(name, prop, min, max, default, parent, callback)
     end)
 end
 
--- === Teleporter機能実装 ===
--- 前方テレポートボタン
-local forwardB = Instance.new("TextButton", tabTP); forwardB.Text = "TELEPORT FORWARD"; forwardB.Size = UDim2.new(0.95,0,0,55); forwardB.Font = "GothamBold"; forwardB.TextSize = 16; Instance.new("UICorner", forwardB); table.insert(sync_BGs, forwardB); forwardB.TextColor3 = Color3.new(1,1,1)
-forwardB.MouseButton1Click:Connect(function()
-    local char = Player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local hrp = char.HumanoidRootPart
-        -- 現在の向き(LookVector)に対してスライダーの距離を掛けてテレポート
-        hrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -settings.TPDistance)
-    end
+-- === Teleporterタブ (中身を確実に追加) ===
+local forwardBtn = Instance.new("TextButton", tabTP); forwardBtn.Text = "TELEPORT FORWARD"; forwardBtn.Size = UDim2.new(0.95,0,0,50); forwardBtn.Font = "GothamBold"; forwardBtn.TextSize = 15; Instance.new("UICorner", forwardBtn); table.insert(sync_BGs, forwardBtn); forwardBtn.TextColor3 = Color3.new(1,1,1)
+forwardBtn.MouseButton1Click:Connect(function()
+    local hrp = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then hrp.CFrame = hrp.CFrame * CFrame.new(0, 0, -settings.TPDistance) end
 end)
 
--- 距離スライダー (1 to 1000)
-createSlider("TP DISTANCE", "TPDistance", 1, 1000, 10, tabTP)
+createSlider("TP DISTANCE (1-1000)", "TPDistance", 1, 1000, 50, tabTP)
 
--- 位置保存・復元
-local saveB = Instance.new("TextButton", tabTP); saveB.Text = "SAVE CURRENT POS"; saveB.Size = UDim2.new(0.95,0,0,55); saveB.Font = "GothamBold"; saveB.TextSize = 16; Instance.new("UICorner", saveB); table.insert(sync_BGs, saveB); saveB.TextColor3 = Color3.new(1,1,1)
-saveB.MouseButton1Click:Connect(function() settings.TargetPos = Player.Character.HumanoidRootPart.CFrame; saveB.Text = "POS SAVED!"; task.wait(1); saveB.Text = "SAVE CURRENT POS" end)
-local tpB = Instance.new("TextButton", tabTP); tpB.Text = "TELEPORT TO SAVED"; tpB.Size = UDim2.new(0.95,0,0,55); tpB.Font = "GothamBold"; tpB.TextSize = 16; Instance.new("UICorner", tpB); table.insert(sync_BGs, tpB); tpB.TextColor3 = Color3.new(1,1,1)
-tpB.MouseButton1Click:Connect(function() if settings.TargetPos then Player.Character.HumanoidRootPart.CFrame = settings.TargetPos end end)
+local savePosB = Instance.new("TextButton", tabTP); savePosB.Text = "SAVE CURRENT POS"; savePosB.Size = UDim2.new(0.95,0,0,50); savePosB.Font = "GothamBold"; savePosB.TextSize = 15; Instance.new("UICorner", savePosB); table.insert(sync_BGs, savePosB); savePosB.TextColor3 = Color3.new(1,1,1)
+savePosB.MouseButton1Click:Connect(function() settings.TargetPos = Player.Character.HumanoidRootPart.CFrame; savePosB.Text = "SAVED!" task.wait(1) savePosB.Text = "SAVE CURRENT POS" end)
 
--- === 他のタブ配置 ===
+local tpSavedB = Instance.new("TextButton", tabTP); tpSavedB.Text = "TP TO SAVED"; tpSavedB.Size = UDim2.new(0.95,0,0,50); tpSavedB.Font = "GothamBold"; tpSavedB.TextSize = 15; Instance.new("UICorner", tpSavedB); table.insert(sync_BGs, tpSavedB); tpSavedB.TextColor3 = Color3.new(1,1,1)
+tpSavedB.MouseButton1Click:Connect(function() if settings.TargetPos then Player.Character.HumanoidRootPart.CFrame = settings.TargetPos end end)
+
+-- === Customizerタブ ===
 createToggle("INSTANT PROMPT", "InstantPrompt", tabCustom)
 createSlider("WALK SPEED", "WalkSpeed", 16, 300, 16, tabCustom, function(v) Player.Character.Humanoid.WalkSpeed = v end)
 createSlider("JUMP POWER", "JumpPower", 50, 500, 50, tabCustom, function(v) Player.Character.Humanoid.JumpPower = v Player.Character.Humanoid.UseJumpPower = true end)
+createSlider("CAMERA FOV", "GameFOV", 70, 120, 70, tabCustom, function(v) Camera.FieldOfView = v end)
 
+-- === AutoAimタブ ===
 createToggle("SHOW FOV CIRCLE", "ShowCircle", tabAim)
-local bindB = Instance.new("TextButton", tabAim); bindB.Text = "AIM KEY: " .. settings.AimKey.Name; bindB.Size = UDim2.new(0.95,0,0,50); bindB.Font = "GothamBold"; bindB.TextSize = 16; Instance.new("UICorner", bindB); table.insert(sync_BGs, bindB); table.insert(sync_Accents, bindB)
-local binding = false; bindB.MouseButton1Click:Connect(function() binding = true; bindB.Text = "PRESS KEY..." end)
-createToggle("AIM BOT ENABLE", "AimBot", tabAim)
+local bindBtn = Instance.new("TextButton", tabAim); bindBtn.Text = "AIM KEY: " .. settings.AimKey.Name; bindBtn.Size = UDim2.new(0.95,0,0,48); bindBtn.Font = "GothamBold"; bindBtn.TextSize = 14; Instance.new("UICorner", bindBtn); table.insert(sync_BGs, bindBtn); table.insert(sync_Accents, bindBtn)
+local binding = false; bindBtn.MouseButton1Click:Connect(function() binding = true; bindBtn.Text = "PRESS KEY..." end)
+createToggle("AIM BOT", "AimBot", tabAim)
 createSlider("AIM RANGE (FOV)", "AimFOV", 10, 800, 100, tabAim)
 createToggle("PLAYER ESP", "ESP", tabAim)
+createToggle("WALL X-RAY", "WallXray", tabAim)
 
+-- === Settingsタブ ===
 for n, d in pairs(THEMES) do
-    local b = Instance.new("TextButton", tabSettings); b.Text = n; b.Size = UDim2.new(0.95,0,0,50); b.Font = "GothamBold"; b.TextSize = 16; Instance.new("UICorner", b); table.insert(sync_BGs, b); b.TextColor3 = d.Accent
+    local b = Instance.new("TextButton", tabSettings); b.Text = n; b.Size = UDim2.new(0.95,0,0,45); b.Font = "GothamBold"; b.TextSize = 14; Instance.new("UICorner", b); table.insert(sync_BGs, b); b.TextColor3 = d.Accent
     b.MouseButton1Click:Connect(function() ApplyTheme(d) end)
 end
 
--- === メインロジック（ESP・エイム等） ===
+-- === メインループ ===
 RunService.RenderStepped:Connect(function()
     fovCircle.Visible = settings.ShowCircle
     if settings.InstantPrompt then
-        for _, prompt in pairs(workspace:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then prompt.HoldDuration = 0 end
-        end
+        for _, p in pairs(workspace:GetDescendants()) do if p:IsA("ProximityPrompt") then p.HoldDuration = 0 end end
     end
-    local target = nil
-    local shortestDist = settings.AimFOV
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local target = nil; local shortestDist = settings.AimFOV; local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     for _, p in pairs(game.Players:GetPlayers()) do
         if p ~= Player and p.Character and p.Character:FindFirstChild("Head") then
             if settings.ESP then
                 if not p.Character:FindFirstChild("HrH") then Instance.new("Highlight", p.Character).Name = "HrH" end
                 p.Character.HrH.FillColor = currentTheme.Accent
             elseif p.Character:FindFirstChild("HrH") then p.Character.HrH:Destroy() end
-            local pos, onScreen = Camera:WorldToViewportPoint(p.Character.Head.Position)
-            if onScreen then
-                local distFromCenter = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
-                if distFromCenter < shortestDist then shortestDist = distFromCenter target = p.Character.Head end
+            local pos, onS = Camera:WorldToViewportPoint(p.Character.Head.Position)
+            if onS then
+                local d = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                if d < shortestDist then shortestDist = d target = p.Character.Head end
             end
         end
     end
     if settings.AimBot and target then Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position) end
+    if settings.WallXray then
+        for _, o in pairs(workspace:GetDescendants()) do
+            if o:IsA("BasePart") and not o:IsDescendantOf(Player.Character) and not o.Parent:FindFirstChild("Humanoid") then
+                if o.Transparency < 0.6 then o.Transparency = 0.6 end
+            end
+        end
+    end
 end)
 
 -- === ロード画面と起動 ===
@@ -180,7 +198,7 @@ local loadLabel = Instance.new("TextLabel", loadFrame); loadLabel.Text = "HrMk H
 task.spawn(function() task.wait(1.5); loadFrame:Destroy(); mainFrame.Visible = true end)
 
 UserInputService.InputBegan:Connect(function(i, g)
-    if binding then settings.AimKey = i.KeyCode; bindB.Text = "AIM KEY: " .. i.KeyCode.Name; binding = false; return end
+    if binding then settings.AimKey = i.KeyCode; bindBtn.Text = "AIM KEY: " .. i.KeyCode.Name; binding = false; return end
     if g then return end
     if i.KeyCode == settings.AimKey then settings.AimBot = not settings.AimBot end
     if i.KeyCode == Enum.KeyCode.M then mainFrame.Visible = not mainFrame.Visible end
