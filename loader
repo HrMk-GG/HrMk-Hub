@@ -4,9 +4,10 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "HrMk_Hub_V13_Fixed"
+screenGui.Name = "HrMk_Hub_V14"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = PlayerGui
 
@@ -14,7 +15,7 @@ screenGui.Parent = PlayerGui
 local settings = {
     AimBot = false, AimKey = Enum.KeyCode.E, AimFOV = 100, GameFOV = 70,
     ESP = false, WallXray = false, WalkSpeed = 16, JumpPower = 50,
-    TargetPos = nil, ShowCircle = true
+    TargetPos = nil, ShowCircle = true, InstantPrompt = false -- 追加
 }
 
 -- === テーマ定義 ===
@@ -30,11 +31,10 @@ local currentTheme = THEMES["Neon Blue"]
 local sync_BGs = {}
 local sync_Accents = {}
 
--- === FOVサークル（画面中央固定） ===
+-- === FOVサークル ===
 local fovCircle = Instance.new("Frame", screenGui)
-fovCircle.Name = "FOVCircle"
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0) -- 画面中央
+fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
 fovCircle.BackgroundTransparency = 1
 fovCircle.Size = UDim2.new(0, settings.AimFOV * 2, 0, settings.AimFOV * 2)
 local circleStroke = Instance.new("UIStroke", fovCircle)
@@ -60,7 +60,7 @@ local function ApplyTheme(theme)
     end
 end
 
--- === UI構築 (中身省略せず全て配置) ===
+-- === UI構築 ===
 mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Size = UDim2.new(0, 540, 0, 400); mainFrame.Position = UDim2.new(0.5, -270, 0.5, -200); mainFrame.Visible = false; mainFrame.Active = true; mainFrame.Draggable = true
 Instance.new("UICorner", mainFrame); mainStroke = Instance.new("UIStroke", mainFrame); mainStroke.Thickness = 3
@@ -80,7 +80,7 @@ end
 local tabTP = createTab("Teleporter"); local tabCustom = createTab("Customizer"); local tabAim = createTab("AutoAim"); local tabSettings = createTab("Settings")
 tabs["Teleporter"].Visible = true
 
--- 共通パーツ作成関数
+-- 共通パーツ
 local function createToggle(name, prop, parent)
     local btn = Instance.new("TextButton", parent); btn.Text = name .. " : OFF"; btn.Size = UDim2.new(0.95, 0, 0, 50); btn.Font = "GothamBold"; btn.TextSize = 16; btn.TextColor3 = Color3.fromRGB(200, 200, 200); Instance.new("UICorner", btn); table.insert(sync_BGs, btn)
     btn.MouseButton1Click:Connect(function()
@@ -108,17 +108,17 @@ local function createSlider(name, prop, min, max, default, parent, callback)
     end)
 end
 
--- === 各タブ機能実装 ===
+-- === コンテンツ配置 ===
 -- Teleporter
 local saveB = Instance.new("TextButton", tabTP); saveB.Text = "SAVE CURRENT POS"; saveB.Size = UDim2.new(0.95,0,0,55); saveB.Font = "GothamBold"; saveB.TextSize = 16; Instance.new("UICorner", saveB); table.insert(sync_BGs, saveB); saveB.TextColor3 = Color3.new(1,1,1)
 saveB.MouseButton1Click:Connect(function() settings.TargetPos = Player.Character.HumanoidRootPart.CFrame; saveB.Text = "POS SAVED!"; task.wait(1); saveB.Text = "SAVE CURRENT POS" end)
 local tpB = Instance.new("TextButton", tabTP); tpB.Text = "TELEPORT"; tpB.Size = UDim2.new(0.95,0,0,55); tpB.Font = "GothamBold"; tpB.TextSize = 16; Instance.new("UICorner", tpB); table.insert(sync_BGs, tpB); tpB.TextColor3 = Color3.new(1,1,1)
 tpB.MouseButton1Click:Connect(function() if settings.TargetPos then Player.Character.HumanoidRootPart.CFrame = settings.TargetPos end end)
 
--- Customizer
+-- Customizer (ここにInstant Proximityを追加)
+createToggle("INSTANT PROMPT", "InstantPrompt", tabCustom)
 createSlider("WALK SPEED", "WalkSpeed", 16, 300, 16, tabCustom, function(v) Player.Character.Humanoid.WalkSpeed = v end)
 createSlider("JUMP POWER", "JumpPower", 50, 500, 50, tabCustom, function(v) Player.Character.Humanoid.JumpPower = v Player.Character.Humanoid.UseJumpPower = true end)
-createSlider("GAME FOV", "GameFOV", 70, 120, 70, tabCustom, function(v) Camera.FieldOfView = v end)
 
 -- AutoAim
 createToggle("SHOW FOV CIRCLE", "ShowCircle", tabAim)
@@ -135,23 +135,30 @@ for n, d in pairs(THEMES) do
     b.MouseButton1Click:Connect(function() ApplyTheme(d) end)
 end
 
--- === エイム・ESPロジック ===
+-- === メインロジック ===
 RunService.RenderStepped:Connect(function()
     fovCircle.Visible = settings.ShowCircle
     
+    -- Instant ProximityPrompt Logic
+    if settings.InstantPrompt then
+        for _, prompt in pairs(workspace:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                prompt.HoldDuration = 0
+            end
+        end
+    end
+
     local target = nil
     local shortestDist = settings.AimFOV
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, p in pairs(game.Players:GetPlayers()) do
         if p ~= Player and p.Character and p.Character:FindFirstChild("Head") then
-            -- ESP処理
             if settings.ESP then
                 if not p.Character:FindFirstChild("HrH") then Instance.new("Highlight", p.Character).Name = "HrH" end
                 p.Character.HrH.FillColor = currentTheme.Accent
             elseif p.Character:FindFirstChild("HrH") then p.Character.HrH:Destroy() end
             
-            -- エイムターゲット計算（画面中央からの距離）
             local pos, onScreen = Camera:WorldToViewportPoint(p.Character.Head.Position)
             if onScreen then
                 local distFromCenter = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
@@ -176,7 +183,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- === 起動・キー入力処理 ===
+-- === 起動・キー入力 ===
 local loadFrame = Instance.new("Frame", screenGui); loadFrame.Size = mainFrame.Size; loadFrame.Position = mainFrame.Position; loadFrame.BackgroundColor3 = currentTheme.Main; Instance.new("UICorner", loadFrame)
 local loadLabel = Instance.new("TextLabel", loadFrame); loadLabel.Text = "HrMk Hub"; loadLabel.Size = UDim2.new(1,0,1,0); loadLabel.TextColor3 = currentTheme.Accent; loadLabel.Font = "FredokaOne"; loadLabel.TextSize = 50; loadLabel.BackgroundTransparency = 1; table.insert(sync_Accents, loadLabel)
 
